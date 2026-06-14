@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Niran ASM · Attack Surface Tracker</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-deep: #0a0c10;
+      --bg-surface: #11151c;
+      --bg-card: #161c24;
+      --border-dim: #252e3a;
+      --text-main: #edf2f7;
+      --text-muted: #8e9aaf;
+      --accent-cyan: #2dd4bf;
+      --accent-blue: #3b82f6;
+      --accent-purple: #a78bfa;
+      --success: #10b981;
+      --warning: #f97316;
+      --priority-high: #ef4444;
+      --priority-med: #eab308;
+      --shadow-card: 0 12px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    body {
+      background: radial-gradient(circle at 10% 20%, #0e121b, #05070a);
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      color: var(--text-main);
+      padding-bottom: 3rem;
+    }
+
+    .header {
+      background: rgba(17, 21, 28, 0.96);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(45, 62, 80, 0.6);
+      padding: 1rem 2rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-area h1 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #c084fc, #2dd4bf);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: -0.3px;
+    }
+    .logo-area p {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .stats-group {
+      display: flex;
+      gap: 24px;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 18px;
+      border-radius: 48px;
+      backdrop-filter: blur(4px);
+    }
+    .stat-badge {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 0.9rem;
+    }
+    .stat-number {
+      font-weight: 800;
+      font-size: 1.4rem;
+      color: var(--accent-cyan);
+    }
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 8px 18px;
+      border-radius: 40px;
+      border: none;
+      font-weight: 500;
+      font-size: 0.8rem;
+      cursor: pointer;
+      background: #1f2a36;
+      color: #e2e8f0;
+      transition: all 0.2s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .btn-primary {
+      background: linear-gradient(95deg, #0e6b5e, #0f766e);
+      color: white;
+    }
+    .btn-primary:hover {
+      background: linear-gradient(95deg, #1f8a7a, #14b8a6);
+      transform: scale(0.97);
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid #3b4c62;
+    }
+    .btn-outline:hover {
+      background: #1f2a36;
+      border-color: var(--accent-cyan);
+    }
+    .btn-warning {
+      background: rgba(249,115,22,0.2);
+      border: 1px solid #f97316;
+      color: #fcd34d;
+    }
+    .btn-warning:hover {
+      background: #f97316;
+      color: #0a0c10;
+    }
+
+    .filter-section {
+      max-width: 1300px;
+      margin: 1.8rem auto 1rem;
+      padding: 0 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .filter-tabs {
+      display: flex;
+      gap: 8px;
+      background: #0f131c;
+      padding: 6px 12px;
+      border-radius: 60px;
+      flex-wrap: wrap;
+    }
+    .filter-chip {
+      background: none;
+      border: none;
+      padding: 6px 18px;
+      border-radius: 32px;
+      color: var(--text-muted);
+      font-weight: 500;
+      cursor: pointer;
+      transition: 0.1s;
+    }
+    .filter-chip.active {
+      background: var(--accent-blue);
+      color: white;
+      box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+    }
+    .legend {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      font-size: 0.7rem;
+      background: #0f131c80;
+      padding: 6px 14px;
+      border-radius: 40px;
+    }
+    .legend-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 10px;
+      margin-right: 5px;
+    }
+
+    .phases-container {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .phase-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      border-radius: 24px;
+      overflow: hidden;
+      transition: all 0.2s;
+      box-shadow: var(--shadow-card);
+    }
+    .phase-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      background: rgba(22, 28, 36, 0.9);
+      cursor: pointer;
+      transition: 0.1s;
+    }
+    .phase-header:hover {
+      background: #1e293b;
+    }
+    .phase-left {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .phase-icon {
+      font-size: 1.7rem;
+    }
+    .phase-title h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    .phase-title p {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+    .phase-progress {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 150px;
+    }
+    .progress-bar-bg {
+      width: 100px;
+      height: 6px;
+      background: #2d3748;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-blue));
+      border-radius: 10px;
+      transition: width 0.3s;
+    }
+    .phase-percent {
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: var(--accent-cyan);
+    }
+    .chevron {
+      font-size: 1rem;
+      transition: transform 0.2s;
+    }
+    .phase-card.open .chevron {
+      transform: rotate(90deg);
+    }
+    .phase-body {
+      display: none;
+      padding: 0.5rem 1rem 1.2rem 1rem;
+      background: #0f141c;
+    }
+    .phase-card.open .phase-body {
+      display: block;
+    }
+    .section-group {
+      margin: 20px 8px 16px 8px;
+    }
+    .section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      color: var(--accent-purple);
+      margin-bottom: 12px;
+      padding-left: 6px;
+    }
+    .tasks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .task-item {
+      background: #0b0f16;
+      border-radius: 14px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: 0.1s;
+      border: 1px solid #1f2a36;
+    }
+    .task-item:hover {
+      background: #131c26;
+      border-color: #2d4a6e;
+    }
+    .task-check {
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      border: 2px solid #4b5568;
+      background: transparent;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.1s;
+      flex-shrink: 0;
+    }
+    .task-item.completed .task-check {
+      background: var(--success);
+      border-color: var(--success);
+      position: relative;
+    }
+    .task-item.completed .task-check::after {
+      content: "✓";
+      font-size: 13px;
+      color: black;
+      font-weight: bold;
+    }
+    .task-label {
+      flex: 1;
+      font-size: 0.85rem;
+      font-weight: 450;
+      line-height: 1.4;
+    }
+    .task-item.completed .task-label {
+      text-decoration: line-through;
+      color: #7e8aa2;
+    }
+    .priority-tag {
+      font-size: 0.65rem;
+      padding: 3px 9px;
+      border-radius: 20px;
+      background: #1f2a36;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .priority-high {
+      background: rgba(239,68,68,0.2);
+      color: #ff8a7a;
+      border: 0.5px solid #ef4444;
+    }
+    .priority-med {
+      background: rgba(234,179,8,0.15);
+      color: #facc15;
+    }
+    .stats-mini {
+      display: flex;
+      gap: 8px;
+      font-size: 0.7rem;
+    }
+
+    @media (max-width: 750px) {
+      .header { flex-direction: column; align-items: stretch; }
+      .phase-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .phase-progress { width: 100%; justify-content: space-between; }
+      .action-buttons { justify-content: center; }
+    }
+
+    .toast-msg {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: #1e2a3a;
+      backdrop-filter: blur(12px);
+      border-left: 4px solid var(--accent-cyan);
+      padding: 12px 24px;
+      border-radius: 60px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      box-shadow: 0 8px 20px black;
+      transition: all 0.2s;
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+      z-index: 999;
+    }
+    .toast-msg.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    footer {
+      text-align: center;
+      margin-top: 40px;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-area">
+    <h1>🛡️ Niran ASM · Tool & Roadmap</h1>
+    <p>attack surface mastery — foundation → enterprise AI layer</p>
+  </div>
+  <div class="stats-group">
+    <div class="stat-badge"><span class="stat-number" id="totalDone">0</span><span>/</span><span id="totalTasksCount">0</span><span> done</span></div>
+    <div class="stat-badge"><span>✅ phases</span><span class="stat-number" id="phasesComplete">0</span></div>
+  </div>
+  <div class="action-buttons">
+    <button class="btn btn-outline" id="expandAllBtn">📂 Expand all</button>
+    <button class="btn btn-outline" id="collapseAllBtn">📁 Collapse all</button>
+    <button class="btn btn-primary" id="markAllDoneBtn">🎯 Complete all</button>
+    <button class="btn btn-warning" id="resetBtn">⟳ Reset</button>
+  </div>
+</div>
+
+<div class="filter-section">
+  <div class="filter-tabs">
+    <button class="filter-chip active" data-filter="all">📋 All tasks</button>
+    <button class="filter-chip" data-filter="pending">⏳ Pending</button>
+    <button class="filter-chip" data-filter="done">✅ Completed</button>
+    <button class="filter-chip" data-filter="priority">🔥 Top priority</button>
+  </div>
+  <div class="legend">
+    <div><span class="legend-dot" style="background:#ef4444;"></span> Top Priority</div>
+    <div><span class="legend-dot" style="background:#eab308;"></span> High</div>
+    <div><span class="legend-dot" style="background:#3b82f6;"></span> Medium</div>
+  </div>
+</div>
+
+<div class="phases-container" id="phasesRoot"></div>
+<div id="toastMsg" class="toast-msg">✨ updated</div>
+<footer>⚡ progress stored in cookies (1 year) · no database needed · your data stays local</footer>
+
+<script>
+  (function() {
+    // --------------------------------------------------------------
+    // CLEAN ASM ROADMAP DATA (no errors, all IDs unique)
+    // --------------------------------------------------------------
+    const phasesData = [
+      { id: "phase0", name: "Phase 0 · Foundation", icon: "🏗️", subtitle: "Backend, Frontend & Core Tools", sections: [
+        { title: "Backend Core", items: [
+          { id: "t0_b1", label: "FastAPI + PostgreSQL integration", doneSeed: true, priority: null },
+          { id: "t0_b2", label: "SQLAlchemy & Pydantic models", doneSeed: true, priority: null },
+          { id: "t0_b3", label: "REST APIs + Docker deployment", doneSeed: true, priority: null },
+          { id: "t0_b4", label: "Redis + Celery workers", doneSeed: true, priority: null }
+        ] },
+        { title: "Frontend & Tools", items: [
+          { id: "t0_f1", label: "Next.js Dashboard & Asset views", doneSeed: true, priority: null },
+          { id: "t0_f2", label: "Subfinder, HTTPX, Nmap integration", doneSeed: true, priority: null }
+        ] }
+      ] },
+      { id: "phase1", name: "Phase 1 · Core ASM", icon: "🔍", subtitle: "Subdomain, DNS & ASN intelligence", sections: [
+        { title: "Subdomain Discovery", items: [
+          { id: "t1_s1", label: "Amass + Assetfinder integration", priority: 1 },
+          { id: "t1_s2", label: "Findomain & Chaos dataset", priority: 1 }
+        ] },
+        { title: "DNS Intelligence", items: [
+          { id: "t1_d1", label: "DNSX & MX / SPF / DMARC collection", priority: 1 },
+          { id: "t1_d2", label: "DKIM + CNAME + NS mapping", priority: 2 }
+        ] },
+        { title: "ASN & Netblocks", items: [
+          { id: "t1_a1", label: "ASN mapping & Netblock identification", priority: 2 },
+          { id: "t1_a2", label: "CIDR expansion", priority: 2 }
+        ] }
+      ] },
+      { id: "phase2", name: "Phase 2 · Web Enumeration", icon: "🕸️", subtitle: "Crawling, history & tech fingerprint", sections: [
+        { title: "Katana Crawler", items: [
+          { id: "t2_k1", label: "Endpoint discovery + JS extraction", priority: 1 },
+          { id: "t2_k2", label: "Form discovery & API path extraction", priority: 1 }
+        ] },
+        { title: "Historical URLs", items: [
+          { id: "t2_h1", label: "GAU + Waybackurls integration", priority: 1 },
+          { id: "t2_h2", label: "Common Crawl enrichment", priority: 2 }
+        ] },
+        { title: "Technology Detection", items: [
+          { id: "t2_t1", label: "Wappalyzer + WhatWeb fingerprinting", priority: 2 },
+          { id: "t2_t2", label: "CMS/Framework/CDN/Language storage", priority: 2 }
+        ] }
+      ] },
+      { id: "phase3", name: "Phase 3 · Vulnerability Discovery", icon: "🎯", subtitle: "Nuclei + CVE risk mapping", sections: [
+        { title: "Nuclei Engine", items: [
+          { id: "t3_n1", label: "Nuclei templates & auto-updates", priority: 1 },
+          { id: "t3_n2", label: "Severity mapping (Critical → Info)", priority: 1 }
+        ] },
+        { title: "CVE & Scoring", items: [
+          { id: "t3_c1", label: "CVE DB + CVSS scoring", priority: 1 },
+          { id: "t3_c2", label: "EPSS + KEV catalog integration", priority: 1 }
+        ] }
+      ] },
+      { id: "phase4", name: "Phase 4 · Cloud Exposure", icon: "☁️", subtitle: "AWS/Azure/GCP asset discovery", sections: [
+        { title: "Public Cloud", items: [
+          { id: "t4_c1", label: "S3 public bucket detection & CloudFront", priority: 1 },
+          { id: "t4_c2", label: "Azure Blob + GCP bucket discovery", priority: 2 },
+          { id: "t4_c3", label: "CloudBrute enumeration", priority: 2 }
+        ] }
+      ] },
+      { id: "phase5", name: "Phase 5 · Visual Recon", icon: "📸", subtitle: "Screenshot engine", sections: [
+        { title: "GoWitness & EyeWitness", items: [
+          { id: "t5_g1", label: "Screenshot collection & history", priority: 1 },
+          { id: "t5_g2", label: "Page categorization (Login/Admin/Dashboard)", priority: 2 }
+        ] }
+      ] },
+      { id: "phase6", name: "Phase 6 · Asset Intel", icon: "🔐", subtitle: "SSL, Whois, Geolocation", sections: [
+        { title: "SSL/TLS", items: [
+          { id: "t6_s1", label: "Certificate expiry monitoring & weak cipher", priority: 2 },
+          { id: "t6_s2", label: "TLS version checks", priority: 2 }
+        ] },
+        { title: "Whois & Geo", items: [
+          { id: "t6_w1", label: "Whois + registrant tracking", priority: 2 },
+          { id: "t6_g1", label: "Geolocation (country/ASN mapping)", priority: 2 }
+        ] }
+      ] },
+      { id: "phase7", name: "Phase 7 · Risk Engine", icon: "⚠️", subtitle: "Business risk scoring", sections: [
+        { title: "Custom Risk Formula", items: [
+          { id: "t7_r1", label: "CVSS + EPSS + KEV weighting", priority: 1 },
+          { id: "t7_r2", label: "Exposure factor & asset criticality scoring", priority: 1 },
+          { id: "t7_r3", label: "Business Risk composite score engine", priority: 1 }
+        ] }
+      ] },
+      { id: "phase8", name: "Phase 8 · Monitoring", icon: "🔄", subtitle: "Scheduled scans + change detection", sections: [
+        { title: "Scan Scheduler", items: [
+          { id: "t8_m1", label: "Daily / weekly / monthly scans", priority: 2 },
+          { id: "t8_m2", label: "Change detection: subdomains, ports, vulns", priority: 1 }
+        ] }
+      ] },
+      { id: "phase9", name: "Phase 9 · Alerting", icon: "🔔", subtitle: "Slack, Email, Teams", sections: [
+        { title: "Channels & Triggers", items: [
+          { id: "t9_a1", label: "SMTP / Slack webhook / Teams", priority: 2 },
+          { id: "t9_a2", label: "Critical CVE & exposed asset alerts", priority: 1 },
+          { id: "t9_a3", label: "Certificate expiration alert", priority: 2 }
+        ] }
+      ] },
+      { id: "phase10", name: "Phase 10 · Reporting", icon: "📄", subtitle: "PDF, CSV, JSON", sections: [
+        { title: "Reports Export", items: [
+          { id: "t10_r1", label: "Executive / Technical PDF reports", priority: 2 },
+          { id: "t10_r2", label: "CSV & JSON export", priority: 2 }
+        ] }
+      ] },
+      { id: "phase11", name: "Phase 11 · Search Engine", icon: "🔎", subtitle: "OpenSearch indexing", sections: [
+        { title: "OpenSearch Integration", items: [
+          { id: "t11_s1", label: "Asset & vulnerability indexing", priority: 2 },
+          { id: "t11_s2", label: "Advanced queries: CVSS>8, admin panels", priority: 2 }
+        ] }
+      ] },
+      { id: "phase12", name: "Phase 12 · Enterprise Security", icon: "🛡️", subtitle: "RBAC, MFA, Audit logs", sections: [
+        { title: "Auth & Roles", items: [
+          { id: "t12_a1", label: "JWT + MFA (2FA)", priority: 2 },
+          { id: "t12_a2", label: "Admin/Manager/Analyst/Viewer RBAC", priority: 2 },
+          { id: "t12_a3", label: "Audit logging (login, scans, exports)", priority: 2 }
+        ] }
+      ] },
+      { id: "phase13", name: "Phase 13 · Multi-Tenancy", icon: "🏢", subtitle: "Org isolation", sections: [
+        { title: "Tenant Model", items: [
+          { id: "t13_t1", label: "Organization & data isolation", priority: 2 },
+          { id: "t13_t2", label: "Tenant-specific scans/reports", priority: 2 }
+        ] }
+      ] },
+      { id: "phase14", name: "Phase 14 · Infrastructure", icon: "⚙️", subtitle: "K8s, Prometheus, Grafana", sections: [
+        { title: "Deployment & Observability", items: [
+          { id: "t14_i1", label: "Helm charts + HPA autoscaling", priority: 3 },
+          { id: "t14_i2", label: "Prometheus + Grafana + Loki", priority: 3 }
+        ] }
+      ] },
+      { id: "phase15", name: "Phase 15 · AI Layer", icon: "🤖", subtitle: "AI analyst & remediation", sections: [
+        { title: "AI Risk Analysis", items: [
+          { id: "t15_ai1", label: "Risk summary & attack path analysis", priority: 3 },
+          { id: "t15_ai2", label: "Prioritized findings & executive summary", priority: 3 },
+          { id: "t15_ai3", label: "Remediation plan generation", priority: 3 }
+        ] }
+      ] },
+      { id: "phase16", name: "Phase 16 · Production Hardening", icon: "🔒", subtitle: "Security + DR", sections: [
+        { title: "Hardening", items: [
+          { id: "t16_h1", label: "Rate limiting, API gateway, secrets vault", priority: 2 },
+          { id: "t16_h2", label: "Retry/DLQ, backup & disaster recovery", priority: 2 }
+        ] }
+      ] }
+    ];
+
+    // --- state (cookie) ---
+    let taskState = {};
+    let currentFilter = "all";
+
+    function loadStateFromCookie() {
+      const cookieName = "niran_asm_tracker_v2";
+      const match = document.cookie.match(new RegExp('(^| )' + cookieName + '=([^;]+)'));
+      if (match) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(match[2]));
+          if (parsed && typeof parsed === 'object') return parsed;
+        } catch(e) { console.warn("cookie parse error"); }
+      }
+      return {};
+    }
+
+    function saveStateToCookie() {
+      const expiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toUTCString();
+      document.cookie = `niran_asm_tracker_v2=${encodeURIComponent(JSON.stringify(taskState))}; expires=${expiry}; path=/; SameSite=Lax`;
+    }
+
+    function initState() {
+      const loaded = loadStateFromCookie();
+      taskState = { ...loaded };
+      // seed Phase 0 tasks that are marked doneSeed
+      phasesData.forEach(phase => {
+        phase.sections.forEach(section => {
+          section.items.forEach(item => {
+            if (item.doneSeed === true && taskState[item.id] !== true) {
+              taskState[item.id] = true;
+            }
+          });
+        });
+      });
+      saveStateToCookie();
+    }
+
+    function isTaskCompleted(taskId) {
+      return taskState[taskId] === true;
+    }
+
+    function setTaskCompletion(taskId, completed) {
+      if (completed) taskState[taskId] = true;
+      else delete taskState[taskId];
+      saveStateToCookie();
+      renderAllPhases();      // full re-render ensures fresh state
+      updateGlobalStats();
+      showToastMessage(completed ? "✓ task completed" : "↺ marked pending");
+    }
+
+    function getPhaseStats(phase) {
+      let total = 0, done = 0;
+      phase.sections.forEach(sec => {
+        sec.items.forEach(it => {
+          total++;
+          if (isTaskCompleted(it.id)) done++;
+        });
+      });
+      return { total, done, percent: total === 0 ? 0 : Math.round((done / total) * 100) };
+    }
+
+    function getAllTasksCount() {
+      let total = 0;
+      phasesData.forEach(p => p.sections.forEach(s => total += s.items.length));
+      return total;
+    }
+    
+    function getTotalDone() {
+      let done = 0;
+      phasesData.forEach(p => p.sections.forEach(s => s.items.forEach(it => { if (isTaskCompleted(it.id)) done++; })));
+      return done;
+    }
+    
+    function getCompletedPhasesCount() {
+      let count = 0;
+      phasesData.forEach(p => {
+        const { total, done } = getPhaseStats(p);
+        if (total > 0 && done === total) count++;
+      });
+      return count;
+    }
+
+    function updateGlobalStats() {
+      const totalTasks = getAllTasksCount();
+      const doneTasks = getTotalDone();
+      document.getElementById("totalDone").innerText = doneTasks;
+      document.getElementById("totalTasksCount").innerText = totalTasks;
+      document.getElementById("phasesComplete").innerText = getCompletedPhasesCount();
+    }
+
+    function renderAllPhases() {
+      const container = document.getElementById("phasesRoot");
+      if (!container) return;
+      container.innerHTML = "";
+      
+      phasesData.forEach(phase => {
+        const { total, done, percent } = getPhaseStats(phase);
+        const phaseDiv = document.createElement("div");
+        phaseDiv.className = "phase-card open"; // default open for clarity
+        phaseDiv.dataset.phaseId = phase.id;
+        
+        phaseDiv.innerHTML = `
+          <div class="phase-header">
+            <div class="phase-left">
+              <div class="phase-icon">${phase.icon}</div>
+              <div class="phase-title">
+                <h3>${phase.name}</h3>
+                <p>${phase.subtitle}</p>
+              </div>
+            </div>
+            <div class="phase-progress">
+              <div class="stats-mini"><span>${done}/${total}</span></div>
+              <div class="progress-bar-bg"><div class="progress-fill" style="width: ${percent}%"></div></div>
+              <div class="phase-percent">${percent}%</div>
+              <div class="chevron">▶</div>
+            </div>
+          </div>
+          <div class="phase-body" id="body-${phase.id}"></div>
+        `;
+        container.appendChild(phaseDiv);
+        
+        const bodyEl = phaseDiv.querySelector(`.phase-body`);
+        phase.sections.forEach(section => {
+          const sectionDiv = document.createElement("div");
+          sectionDiv.className = "section-group";
+          const tasksHtml = section.items.map(item => {
+            const completed = isTaskCompleted(item.id);
+            let priorityClass = "", priorityText = "";
+            if (item.priority === 1) { priorityClass = "priority-high"; priorityText = "🔥 Top"; }
+            else if (item.priority === 2) { priorityClass = "priority-med"; priorityText = "⚡ High"; }
+            else if (item.priority === 3) { priorityText = "🔵 Medium"; priorityClass = "priority-med"; }
+            return `
+              <div class="task-item ${completed ? 'completed' : ''}" data-task-id="${item.id}" data-priority-val="${item.priority || 0}">
+                <div class="task-check"></div>
+                <div class="task-label">${escapeHtml(item.label)}</div>
+                ${priorityText ? `<span class="priority-tag ${priorityClass}">${priorityText}</span>` : ''}
+              </div>
+            `;
+          }).join('');
+          sectionDiv.innerHTML = `<div class="section-title">📌 ${escapeHtml(section.title)}</div><div class="tasks-list">${tasksHtml}</div>`;
+          bodyEl.appendChild(sectionDiv);
+        });
+        
+        // Attach task click handlers
+        phaseDiv.querySelectorAll(".task-item").forEach(taskDiv => {
+          const tid = taskDiv.dataset.taskId;
+          if (!tid) return;
+          taskDiv.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const newStatus = !isTaskCompleted(tid);
+            setTaskCompletion(tid, newStatus);
+          });
+        });
+        
+        // Toggle phase
+        const headerDiv = phaseDiv.querySelector(".phase-header");
+        headerDiv.addEventListener("click", (e) => {
+          if (e.target.closest('.task-item')) return;
+          phaseDiv.classList.toggle("open");
+        });
+      });
+      
+      applyFilterToDOM();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+      });
+    }
+
+    function applyFilterToDOM() {
+      const tasks = document.querySelectorAll(".task-item");
+      tasks.forEach(task => {
+        const taskId = task.dataset.taskId;
+        if (!taskId) return;
+        const completed = isTaskCompleted(taskId);
+        const priorityVal = parseInt(task.dataset.priorityVal) || 0;
+        let visible = true;
+        if (currentFilter === "pending") visible = !completed;
+        else if (currentFilter === "done") visible = completed;
+        else if (currentFilter === "priority") visible = (priorityVal === 1);
+        else visible = true;
+        task.style.display = visible ? "flex" : "none";
+      });
+    }
+
+    function showToastMessage(msg) {
+      const toast = document.getElementById("toastMsg");
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    // batch actions
+    function markAllComplete() {
+      phasesData.forEach(p => p.sections.forEach(s => s.items.forEach(it => { taskState[it.id] = true; })));
+      saveStateToCookie();
+      renderAllPhases();
+      updateGlobalStats();
+      showToastMessage("🎉 All tasks completed — ASM mastery unlocked!");
+    }
+    
+    function resetAllProgress() {
+      if (confirm("⚠️ Reset all progress? Phase 0 foundation tasks will remain completed (seed).")) {
+        taskState = {};
+        // re-seed phase0
+        phasesData.forEach(phase => {
+          phase.sections.forEach(sec => {
+            sec.items.forEach(item => {
+              if (item.doneSeed === true) taskState[item.id] = true;
+            });
+          });
+        });
+        saveStateToCookie();
+        renderAllPhases();
+        updateGlobalStats();
+        showToastMessage("Progress reset — fresh start");
+      }
+    }
+    
+    function expandAllPhases() {
+      document.querySelectorAll(".phase-card").forEach(c => c.classList.add("open"));
+    }
+    function collapseAllPhases() {
+      document.querySelectorAll(".phase-card").forEach(c => c.classList.remove("open"));
+    }
+    
+    function setFilter(filter, btnEl) {
+      currentFilter = filter;
+      document.querySelectorAll(".filter-chip").forEach(btn => btn.classList.remove("active"));
+      if (btnEl) btnEl.classList.add("active");
+      applyFilterToDOM();
+    }
+    
+    function bindEvents() {
+      const expandBtn = document.getElementById("expandAllBtn");
+      const collapseBtn = document.getElementById("collapseAllBtn");
+      const markAllBtn = document.getElementById("markAllDoneBtn");
+      const resetBtn = document.getElementById("resetBtn");
+      if (expandBtn) expandBtn.addEventListener("click", expandAllPhases);
+      if (collapseBtn) collapseBtn.addEventListener("click", collapseAllPhases);
+      if (markAllBtn) markAllBtn.addEventListener("click", markAllComplete);
+      if (resetBtn) resetBtn.addEventListener("click", resetAllProgress);
+      
+      document.querySelectorAll(".filter-chip").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const filterVal = btn.getAttribute("data-filter");
+          if (filterVal) setFilter(filterVal, btn);
+        });
+      });
+    }
+    
+    // bootstrap
+    initState();
+    renderAllPhases();
+    updateGlobalStats();
+    bindEvents();
+  })();
+</script>
+</body>
+</html>
